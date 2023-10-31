@@ -1,0 +1,45 @@
+{
+  "invocation": "my test app",
+  "version": "4.0",
+  "intents": {
+    "YesIntent": {
+      "phrases": [
+        "yes",
+        "yes please",
+        "sure"
+      ]
+    },
+    "NoIntent": {
+      "phrases": [
+        "no",
+        "no thanks"
+      ]
+    },
+    "NameIntent": {
+      "phrases": [
+        "my name is {name}"
+      ],
+      "entities": {
+        "name": {
+          "type": "CUSTOM_NAME"
+        }        
+      }
+    }
+
+  },
+  "entityTypes": {
+    "CUSTOM_NAME": {
+      "name": "CUSTOM_NAME",
+      "values": [
+        {
+          "value": "mark",
+          "synonyms": []
+        },
+        {
+          "value": "john",
+          "synonyms": []
+        }
+      ]
+    }
+  }   
+}
