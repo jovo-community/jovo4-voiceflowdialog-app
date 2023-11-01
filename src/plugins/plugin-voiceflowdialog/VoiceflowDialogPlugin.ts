@@ -8,6 +8,7 @@ import {
   InputType,
   JovoError,
   AxiosRequestConfig,
+  SsmlUtilities,
 } from '@jovotech/framework';
 
 import { Action, IntentAction, LogLevel, ResponseConfig, VersionID } from './interfaces';
@@ -80,7 +81,18 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
         case 'text':
         case 'speak': {
           if (trace.payload.type === 'message') {
-            jovo.$send(trace.payload.message);
+            const message = trace.payload.message;
+
+            if (SsmlUtilities.isPlainText(message)) {
+              jovo.$send(message);
+            } else {
+              jovo.$send({
+                message: {
+                  speech: message,
+                  text: SsmlUtilities.removeSSML(message),
+                },
+              });
+            }
           }
 
           if (trace.payload.type === 'audio') {
