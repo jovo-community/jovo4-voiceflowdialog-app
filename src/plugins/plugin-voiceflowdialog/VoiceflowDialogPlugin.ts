@@ -15,6 +15,7 @@ import { Action, IntentAction, LogLevel, ResponseConfig, VersionID } from './int
 
 export interface VoiceflowDialogPluginConfig extends PluginConfig {
   dialogApiKey: string;
+  useVoiceflowNlu: boolean;
   responseConfig: ResponseConfig;
   versionID: VersionID;
   logs?: boolean | LogLevel;
@@ -24,6 +25,7 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
   getDefaultConfig(): VoiceflowDialogPluginConfig {
     return {
       dialogApiKey: '',
+      useVoiceflowNlu: true,
       responseConfig: {
         tts: false,
         stripSSML: true,
@@ -35,7 +37,10 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
   }
 
   mount(parent: Extensible): Promise<void> | void {
-    parent.middlewareCollection.use('after.interpretation.nlu', async (jovo: Jovo) => {
+    const middlewareName = this.config.useVoiceflowNlu
+      ? 'before.interpretation.nlu'
+      : 'after.interpretation.nlu';
+    parent.middlewareCollection.use(middlewareName, async (jovo: Jovo) => {
       if (!jovo.$user.id) {
         throw new JovoError({
           message: `Can not send request to Voiceflow Dialog API. user ID is missing.`,
@@ -51,12 +56,15 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
       const action = this.processInputAction(jovo);
 
       if (action) {
+        jovo.$data.vfAction = action;
         const data = await this.postInteract(jovo.$user.id, action);
-        jovo.$data.voiceflow = data;
+        jovo.$data.vfResponse = data;
 
         this.processOutput(jovo, data);
 
-        jovo.$handleRequest.skipMiddlewares(
+        const toSkip = [
+          'interpretation.nlu',
+          'after.interpretation.nlu',
           'before.interpretation.end',
           'interpretation.end',
           'after.interpretation.end',
@@ -69,7 +77,16 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
           'before.dialogue.logic',
           'dialogue.logic',
           'after.dialogue.logic',
-        );
+        ];
+
+        // When useVoicefowNlu config is true, plugin runs at 'before.interpretation.nlu'
+        // which prevents Jovo-configured NLU from running and forwards text to Dialog API.
+        // Use the complete list of middlewares to skip including both 'interpretation.nlu' ones.
+        //
+        // When useVoicefowNlu config is false, plugin runs at 'after.interpretation.nlu'
+        // which allows other Jovo-configured NLU to run to convert text into intent + entities.
+        // Don't include the first two items in the toSkip array.
+        jovo.$handleRequest.skipMiddlewares(...toSkip.slice(this.config.useVoiceflowNlu ? 0 : 2));
       }
     });
   }
@@ -122,10 +139,7 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
       return { type: 'launch' };
     }
 
-    if (text) {
-      return { type: 'text', payload: text };
-    }
-
+    // process intent over text if present
     if (intentName) {
       const action: IntentAction = {
         type: 'intent',
@@ -141,6 +155,10 @@ export class VoiceflowDialogPlugin extends Plugin<VoiceflowDialogPluginConfig> {
       }
 
       return action;
+    }
+
+    if (text) {
+      return { type: 'text', payload: text };
     }
 
     jovo.$input.type = InputType.Error;

@@ -36,6 +36,7 @@ const app = new App({
   plugins: [
     new VoiceflowDialogPlugin({
       dialogApiKey: '** SET API KEY HERE **',
+      // useVoiceflowNlu: false,
       // responseConfig: {
       //   tts: false,
       //   stripSSML: true,
